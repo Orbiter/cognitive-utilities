@@ -1,0 +1,19 @@
+Map and reduce are useful patterns for processing collections of information.
+A map operation transforms one input into a sequence of independent records.
+Each record can then be inspected, enriched, or processed without changing the other records.
+
+JSON Lines is a convenient format for these sequences.
+Every line contains one complete JSON object, so a shell script can read and process records incrementally.
+Unlike a JSON array, a JSONL stream does not need to be loaded into memory all at once.
+
+A filter operates on the mapped records.
+It may add information to every record, such as a category or summary, or retain only records that match a condition.
+Exact conditions are usually best implemented with ordinary tools such as jq, while semantic decisions may benefit from a language model.
+
+A reduce operation combines the sequence into one result.
+Counting categories is a deterministic reduction, whereas identifying shared themes is a semantic reduction.
+The former should use a conventional program; the latter can use a schema-constrained model response.
+
+Clear interfaces make these stages composable.
+When every mapper and filter emits valid JSONL and every reducer emits one documented JSON object,
+stages can be rearranged, tested independently, and reused in different applications.
