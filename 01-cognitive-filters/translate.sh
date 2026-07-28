@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# Usage: echo 'The build completed successfully.' | ./translate.sh de
+# translator example: text to translation, with language parameter
+# usage: echo 'The build completed successfully.' | ./translate.sh de
+# usage: echo 'The build completed successfully.' | ./translate.sh es
+
 set -euo pipefail
 
 if (( $# != 1 )); then
@@ -21,9 +24,8 @@ curl -fSs "$OPENAI_BASE_URL/v1/chat/completions" \
   -H "Authorization: Bearer $OPENAI_API_KEY" -H "Content-Type: application/json" \
   -d @- <<EOF | jq -er '.choices[0].message.content | fromjson | .translation'
 {
-  "model": "$OPENAI_MODEL",
-  "temperature": 0.0, "reasoning_effort": "none",
-  "stream": false,
+  "model": "$OPENAI_MODEL", "temperature": $OPENAI_TEMPERATURE,
+  "reasoning_effort": "$OPENAI_REASONING_EFFORT", "stream": false,
   "messages": [
     {"role": "system", "content": $instruction_json},
     {"role": "user", "content": $input_json}

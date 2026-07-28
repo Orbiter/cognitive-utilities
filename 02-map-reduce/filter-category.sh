@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Usage: ./filter-classify.sh < records.jsonl | ./filter-category.sh bug
+# 
+# usage: ./filter-classify.sh < records.jsonl | ./filter-category.sh bug
 set -euo pipefail
 
 if (( $# != 1 )); then

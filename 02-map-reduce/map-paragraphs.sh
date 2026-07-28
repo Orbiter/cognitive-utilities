@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Usage: cat article.txt | ./map-paragraphs.sh
+# create jsonl from a single document with paragraphs
+# usage: cat article.txt | ./map-paragraphs.sh
 set -euo pipefail
 
 jq -Rsc '

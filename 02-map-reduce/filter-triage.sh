@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Usage: ./map-lines.sh < issues.txt | ./filter-triage.sh
+# 
+# usage: ./map-lines.sh < issues.txt | ./filter-triage.sh
 set -euo pipefail
 
 line_number=0
@@ -19,8 +20,8 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     -H "Authorization: Bearer $OPENAI_API_KEY" -H "Content-Type: application/json" \
     -d @- <<EOF | jq -ec '.choices[0].message.content | fromjson'
 {
-  "model": "$OPENAI_MODEL",
-  "temperature": 0.0, "reasoning_effort": "none", "stream": false,
+  "model": "$OPENAI_MODEL", "temperature": $OPENAI_TEMPERATURE,
+  "reasoning_effort": "$OPENAI_REASONING_EFFORT", "stream": false,
   "messages": [
     {"role": "system", "content": "Triage the issue in the JSON object. Base every field only on its text value."},
     {"role": "user", "content": $record_json}

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Usage: ./filter-classify.sh < records.jsonl | ./reduce-category-counts.sh
+# 
+# usage: ./filter-classify.sh < records.jsonl | ./reduce-category-counts.sh
 set -euo pipefail
 
 jq -sc '

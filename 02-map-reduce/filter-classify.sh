@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Usage: ./map-lines.sh < issues.txt | ./filter-classify.sh
+# 
+# usage: ./map-lines.sh < issues.txt | ./filter-classify.sh
 set -euo pipefail
 
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)

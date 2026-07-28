@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Usage: printf 'Server unavailable.\nAdd dark mode.\nHow do I log in?\n' | ./map-lines.sh
+# create jsonl from lines of a single document 
+# usage: printf 'Server unavailable.\nAdd dark mode.\nHow do I log in?\n' | ./map-lines.sh
 set -euo pipefail
 
 id=0
