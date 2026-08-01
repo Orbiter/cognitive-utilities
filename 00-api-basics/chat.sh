@@ -1,4 +1,6 @@
+#!/usr/bin/env bash
 # simple chat request, no streaming
+# usage: ./chat.sh
 
 curl -sS "$OPENAI_BASE_URL/v1/chat/completions" \
   -H "Authorization: Bearer $OPENAI_API_KEY" -H "Content-Type: application/json" \

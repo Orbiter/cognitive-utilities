@@ -1,5 +1,7 @@
+#!/usr/bin/env bash
 # simple vision request
 # image from https://unsplash.com/de/fotos/mann-der-an-einem-uberfullten-schreibtisch-mit-einem-computer-arbeitet-BJHESX8uBS8
+# usage: ./vision.sh
 
 image_path="images/t-penguin-BJHESX8uBS8-unsplash.jpg"
 base64_image=$(base64 < "$image_path" | tr -d '\n')

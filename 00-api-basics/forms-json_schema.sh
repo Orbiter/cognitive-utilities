@@ -1,4 +1,6 @@
+#!/usr/bin/env bash
 # form request, prompt nudging + explicit response schema
+# usage: ./forms-json_schema.sh
 
 curl -sS "$OPENAI_BASE_URL/v1/chat/completions" \
   -H "Authorization: Bearer $OPENAI_API_KEY" -H "Content-Type: application/json" \
