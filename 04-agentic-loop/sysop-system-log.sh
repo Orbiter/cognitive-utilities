@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # investigate real system logs with at most 20 tool calls
-# usage: echo "Inspect /var/log and report recent errors. Make a full audit." | ./sysop-system-log.py
+# usage: echo "Inspect /var/log and report recent errors. Make a full audit." | ./sysop-system-log.sh
 set -euo pipefail
 
 log_root=$(realpath /var/log)

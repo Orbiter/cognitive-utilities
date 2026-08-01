@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # investigate logs until the root cause is found
-# usage: echo "Diagnose incident INC-781." | ./sysop-synthetic-log.py
+# usage: echo "Diagnose incident INC-781." | ./sysop-synthetic-log.sh
 set -euo pipefail
 
 logs='application.log: incident=INC-781 status=unresolved next_id=db-42
