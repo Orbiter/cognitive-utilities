@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>BGB-Suche</title>
+    <style>
+      body {
+        max-width: 60rem;
+        margin: 2rem auto;
+        padding: 0 1rem;
+        font: 1rem/1.5 system-ui, sans-serif;
+        color: #222;
+      }
+
+      form {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+      }
+
+      input {
+        flex: 1;
+        min-width: 0;
+        padding: 0.6rem;
+        font: inherit;
+      }
+
+      button {
+        padding: 0.6rem 1rem;
+        font: inherit;
+        cursor: pointer;
+      }
+
+      article {
+        padding: 1rem 0;
+        border-top: 1px solid #ccc;
+      }
+
+      article h2 {
+        margin: 0 0 0.5rem;
+        font-size: 1rem;
+      }
+
+      pre {
+        margin: 0;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        font: inherit;
+      }
+
+      .fehler {
+        color: #a00;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>BGB-Suche</h1>
+
+      <form id="suchformular">
+        <label for="suchfeld">Suchbegriffe</label>
+        <input
+          id="suchfeld"
+          name="q"
+          type="search"
+          placeholder="Kauf Mangel Nacherfüllung"
+          required
+          autofocus
+        >
+        <button type="submit">Suchen</button>
+      </form>
+
+      <p id="status" aria-live="polite"></p>
+      <section id="ergebnisse" aria-label="Suchergebnisse"></section>
+    </main>
+
+    <script>
+      const apiUrl = "http://127.0.0.1:8080/search";
+      const formular = document.querySelector("#suchformular");
+      const suchfeld = document.querySelector("#suchfeld");
+      const status = document.querySelector("#status");
+      const ergebnisse = document.querySelector("#ergebnisse");
+
+      formular.addEventListener("submit", async (ereignis) => {
+        ereignis.preventDefault();
+        status.className = "";
+        status.textContent = "Suche läuft …";
+        ergebnisse.replaceChildren();
+
+        const url = new URL(apiUrl);
+        url.searchParams.set("q", suchfeld.value.trim());
+
+        try {
+          const antwort = await fetch(url);
+          const inhalt = await antwort.json();
+
+          if (!antwort.ok) {
+            throw new Error(inhalt.fehler || `HTTP ${antwort.status}`);
+          }
+
+          const treffer = inhalt.treffer || [];
+          status.textContent = `${inhalt.anzahl_treffer} Trefferbereiche gefunden, ${treffer.length} angezeigt.`;
+
+          for (const trefferbereich of treffer) {
+            const artikel = document.createElement("article");
+            const ueberschrift = document.createElement("h2");
+            const text = document.createElement("pre");
+
+            ueberschrift.textContent = `${trefferbereich.datei}, Zeilen ${trefferbereich.kontext_von}–${trefferbereich.kontext_bis}`;
+            text.textContent = trefferbereich.text;
+            artikel.append(ueberschrift, text);
+            ergebnisse.append(artikel);
+          }
+        } catch (fehler) {
+          status.className = "fehler";
+          status.textContent = `Fehler: ${fehler.message}. Läuft search-server.py auf Port 8080?`;
+        }
+      });
+    </script>
+  </body>
+</html>

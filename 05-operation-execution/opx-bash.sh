@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # execute approved bash commands to answer a request
-# usage: echo "Inspect /var/log and report recent errors. Make a full audit." | ./bash-agent.sh
+# usage: echo "Inspect /var/log and report recent errors. Make a full audit." | ./opx-bash.sh
 
 set -uo pipefail
 

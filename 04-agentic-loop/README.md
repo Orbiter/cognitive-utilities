@@ -48,6 +48,7 @@ After this chapter, you should be able to:
 
 - Chapter [`03-tool-calling`](../03-tool-calling/)
 - Bash
+- Python 3
 - `curl`
 - `jq`
 - `grep`, `find`, `gzip`, and `realpath`
@@ -60,15 +61,18 @@ Load the workshop configuration before running the examples:
 source ../configure.sh
 ```
 
-Despite their `.py` filenames, the two workshop programs are executable Bash
-scripts. Their shebang selects Bash when they are invoked directly.
-
 ## Scripts
 
 | Script | Purpose |
 |---|---|
-| `sysop-synthetic-log.py` | Demonstrates the smallest useful agentic loop with one tool and deterministic data. |
-| `sysop-system-log.py` | Applies the loop to real system logs with two tools and practical limits. |
+| `sysop-synthetic-log.sh` | Demonstrates the smallest useful agentic loop with one tool and deterministic data. |
+| `sysop-system-log.sh` | Applies the loop to real system logs with two tools and practical limits. |
+| `research.sh` | Discovers an embedded cellular-automaton rule through repeated experiments. |
+| `mandelbrot.sh` | Searches an ASCII Mandelbrot image through repeated render experiments. |
+| `search-server.py` | Searches one local BGB document and exposes results as JSON over HTTP. |
+| `search-agent.py` | Uses the BGB search API as a tool in a German-language agentic loop. |
+| `search-client.html` | Provides a minimal browser test page for the search API. |
+| `yacy-agent.py` | Uses a local YaCy index as the search backend of an agentic loop. |
 
 The first script isolates the loop. The second retains that loop and adds the
 management needed when tools operate on a real system.
@@ -78,7 +82,7 @@ management needed when tools operate on a real system.
 Run:
 
 ```bash
-echo "Diagnose incident INC-781." | ./sysop-synthetic-log.py
+echo "Diagnose incident INC-781." | ./sysop-synthetic-log.sh
 ```
 
 The script contains three synthetic log records:
@@ -170,7 +174,7 @@ Run:
 
 ```bash
 echo "Inspect /var/log and report recent errors. Make a full audit." \
-  | ./sysop-system-log.py
+  | ./sysop-system-log.sh
 ```
 
 Results depend on the operating system, available logs, file permissions, and
@@ -367,6 +371,58 @@ jq -er '.choices[0].message.content' <<<"$answer"
 In a production filter, progress messages would normally go to `stderr`, leaving
 only the final answer on `stdout`.
 
+## Search local knowledge through an HTTP tool
+
+The BGB example separates knowledge retrieval from the agent. Start the search
+server in one terminal:
+
+```bash
+./search-server.py
+```
+
+The server downloads `bgb.md` only when the file is missing and then provides a
+small JSON API with one query parameter:
+
+```bash
+curl --get --data-urlencode 'q=Kauf Mangel Nacherfüllung' \
+  http://127.0.0.1:8080/search
+```
+
+Start the German-language agent in a second terminal:
+
+```bash
+./search-agent.py
+```
+
+The agent does not read `bgb.md` itself. Its `bgb_suche(q)` tool calls the HTTP
+API, receives ranked text passages as JSON, and returns them to the model. The
+model may issue another search with improved terms before answering.
+
+Open `search-client.html` directly in a browser to test the same API without an
+LLM. The server permits cross-origin `GET` and `OPTIONS` requests so the client
+also works when loaded through a `file://` URL.
+
+## Search a YaCy index
+
+`yacy-agent.py` provides an English-language tool-calling loop backed by YaCy's
+`/yacysearch.json` interface. YaCy must already be running and contain indexed
+documents.
+
+```bash
+./yacy-agent.py
+```
+
+By default the agent queries `http://127.0.0.1:8090/yacysearch.json`. Override
+that endpoint when necessary:
+
+```bash
+YACY_SEARCH_URL=http://search-host:8090/yacysearch.json ./yacy-agent.py
+```
+
+The adapter always requests `resource=local`, at most five text results, and
+`verify=cacheonly`. This keeps retrieval inside the selected YaCy peer and
+prevents result verification from fetching pages from the network.
+
 ## Safety lessons
 
 - Tool descriptions guide the model; host code enforces boundaries.
@@ -384,17 +440,16 @@ only the final answer on `stdout`.
 Both examples investigate and report. They cannot modify files, run arbitrary
 commands, apply patches, or change repository state.
 
-Chapter 05 adds those side effects and a new completion condition:
+Chapter 05 adds approved shell commands and workspace-relative file writes:
 
 ```text
-investigate → modify → test → inspect diff → report
+investigate → request operation → approve → execute → report
 ```
 
-That additional responsibility—not the loop itself—is what turns an
-investigative agent into a coding agent.
+That additional responsibility—not the loop itself—is what turns a read-only
+investigation into an operation-execution agent.
 
 ## Next chapter
 
-[`05-coding-agent`](../05-coding-agent/) reuses the same agentic loop with
-controlled write, test, and diff tools so the model can change code and verify
-the result.
+[`05-operation-execution`](../05-operation-execution/) reuses the same agentic
+loop with approved Bash and file-writing tools.

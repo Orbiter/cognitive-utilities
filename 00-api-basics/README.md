@@ -2,7 +2,7 @@
 
 This folder is an educational introduction to an OpenAI-compatible Chat Completions API. The scripts deliberately show the HTTP requests directly instead of hiding them behind a library or a larger utility.
 
-The examples build on one another. They begin with a single chat request, add streaming and conversation context, introduce three levels of JSON output, and finish by combining image input with structured output.
+The examples build on one another. They begin with a single chat request, add streaming and conversation context, turn that context into an interactive terminal chat, introduce three levels of JSON output, and finish by combining image input with structured output.
 
 ## Learning objectives
 
@@ -11,6 +11,7 @@ After working through the scripts, you should understand:
 - how to send a request to `/v1/chat/completions` with `curl`;
 - how `model`, `messages`, `temperature`, `reasoning_effort`, and `stream` affect a request;
 - how the `system`, `user`, and `assistant` roles form a conversation context;
+- how a client retains and resends conversation history across multiple turns;
 - how plain prompting, JSON mode, and a strict JSON Schema differ;
 - how to send a local image as a Base64 data URL;
 - how vision input and structured output can be used together; and
@@ -22,7 +23,8 @@ You need a POSIX-compatible shell plus these command-line programs:
 
 - `curl`, for sending HTTP requests;
 - `jq`, for formatting and selecting JSON; and
-- `base64`, for encoding the image used by the vision examples.
+- `base64`, for encoding the image used by the vision examples; and
+- Python 3, for the two Python chat clients.
 
 Before running a script, define these environment variables:
 
@@ -30,6 +32,8 @@ Before running a script, define these environment variables:
 export OPENAI_BASE_URL="http://localhost:11434"
 export OPENAI_API_KEY="your-api-key"
 export OPENAI_MODEL="your-model"
+export OPENAI_TEMPERATURE="0.0"
+export OPENAI_REASONING_EFFORT="none"
 ```
 
 `OPENAI_BASE_URL` must be the server address without `/v1`, because every script appends `/v1/chat/completions`. The selected model must support vision for the final two examples.
@@ -43,7 +47,7 @@ cd 00-api-basics
 
 ## The common request structure
 
-Every script sends an HTTP `POST` request with the same basic command:
+Every script sends an HTTP `POST` request with the same basic structure. The shell examples use this command:
 
 ```sh
 curl -sS "$OPENAI_BASE_URL/v1/chat/completions" \
@@ -52,7 +56,7 @@ curl -sS "$OPENAI_BASE_URL/v1/chat/completions" \
   -d @-
 ```
 
-The `-d @-` option tells `curl` to read the request body from standard input. A here-document beginning with `<<EOF` supplies the JSON body directly inside each script.
+The `-d @-` option tells `curl` to read the request body from standard input. A here-document beginning with `<<EOF` supplies the JSON body directly inside each shell script. The Python clients construct the equivalent request with Python's standard library.
 
 All examples use the model named by `OPENAI_MODEL`, a temperature of `0.0`, and `reasoning_effort` set to `none`. These settings aim for direct, repeatable answers, provided that the chosen server and model support them.
 
@@ -103,7 +107,17 @@ The model receives the complete array with every request. The earlier assistant 
 
 Like `chat.sh`, this script uses `jq` without a filter and displays the complete response object.
 
-## 4. `forms-json_.sh` — requesting JSON with a prompt
+## 4. `chat-terminal.py` — retaining an interactive conversation
+
+`chat-terminal.py` starts an interactive prompt and keeps the successful user and assistant messages in memory. Every API request contains the system message and the complete conversation so far; the API server does not retain that history for the client.
+
+```sh
+python3 chat-terminal.py
+```
+
+Enter `exit`, `quit`, or `ende` to stop. Failed user requests are removed from the history before the next prompt.
+
+## 5. `forms-json_.sh` — requesting JSON with a prompt
 
 `forms-json_.sh` asks the model to translate “I love programming.” into Spanish and Italian. The system message also tells the model to generate JSON.
 
@@ -121,7 +135,7 @@ jq '.choices[0].message'
 
 This selects the message object from the first generated choice instead of displaying the entire API response. Its `content` field still contains the model's response, commonly as JSON encoded inside a string.
 
-## 5. `forms-json_object.sh` — enabling JSON object mode
+## 6. `forms-json_object.sh` — enabling JSON object mode
 
 `forms-json_object.sh` uses the same translation task and adds:
 
@@ -139,7 +153,7 @@ This asks a compatible API to return a valid JSON object. It is stronger than re
 
 The script selects `.choices[0].message` with `jq`.
 
-## 6. `forms-json_schema.sh` — defining an exact JSON shape
+## 7. `forms-json_schema.sh` — defining an exact JSON shape
 
 `forms-json_schema.sh` progresses from JSON object mode to a strict JSON Schema:
 
@@ -168,7 +182,7 @@ prompt only → valid JSON object → schema-constrained JSON
 
 The script again displays `.choices[0].message`.
 
-## 7. `vision.sh` — combining text and an image
+## 8. `vision.sh` — combining text and an image
 
 `vision.sh` reads the local file:
 
@@ -197,7 +211,7 @@ The system message limits the answer to fewer than 16 words. This example requir
 
 Although the source file has a `.jpg` extension, the script labels its data URL as `image/png`. The example documents the request exactly as it currently appears in the script.
 
-## 8. `vision-forms.sh` — structured vision output
+## 9. `vision-forms.sh` — structured vision output
 
 `vision-forms.sh` combines the previous two ideas: it sends the same Base64-encoded image to a vision model and constrains the response with a strict JSON Schema.
 
