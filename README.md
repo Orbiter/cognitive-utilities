@@ -292,36 +292,93 @@ of up to 200,000 tokens, subject to the model server's total context limit.
 
 Compare the variants: `opx-bash.sh` validates and asks before commands, `opx-rw.sh` exposes only bounded file operations, and `opx-evo.sh` confines modification to its own source. Which responsibilities remain with the human operator in each case?
 
-### 06 — The larger OPX coding agent
+### 06 — A compact coding agent
 
-[`06-coding-agent/opx.py`](06-coding-agent/opx.py) combines the previous building blocks in a larger Python script. A prompt can be supplied as arguments, through `stdin`, or through both. OPX streams the response, processes tool requests, uses another LLM request to judge whether the original task was fulfilled, and may generate a follow-up prompt.
+[`06-coding-agent/opx.py`](06-coding-agent/opx.py) combines the previous
+building blocks in one workshop-sized Python program. It uses non-streaming
+requests, retains the conversation history, and repeats tool calls until the
+model returns a final answer.
 
-The script implements these tools:
+The file and execution tools are deliberately sufficient for a one-file
+utility:
 
-- tool listing, Bash, and read-only Git commands;
-- file and directory discovery through `find` and `grep`;
-- reading, writing, listing, and creating local paths;
-- previewing and applying unified diffs;
-- directory trees, manual pages, and process listings; and
-- TCP port scanning and reading text-based URLs.
+| Tool | Operation |
+|---|---|
+| `list_files` | List absolute paths in a directory |
+| `read_file` | Read a relative or absolute file path |
+| `write_file` | Create a path, or ask before overwriting it |
+| `replace_in_file` | Replace one unique text occurrence after approval |
+| `bash` | Run one command under the inline Bash policy |
+| `list_skills` | List the bundled skills and their purposes |
+| `read_skill` | Load one selected `SKILL.md` into the conversation |
 
-Read operations are approved by default; write or similarly classified operations ask for approval by default. For the first run, further restrict the set of visible tools:
+File tools accept relative and absolute paths and return normalized absolute
+paths in their results. The Bash tool rejects shell composition and uses the
+same last-match-wins `allow`/`ask`/`deny` mechanism as
+`05-operation-execution/opx-bash.sh`. Commands that can modify files or invoke
+other programs through options require approval. This includes `chmod`,
+`mkdir`, `find`, `touch`, `env`, and the general `git diff` and `git show`
+forms. Exact read-only Git checks such as `git diff --check`, `--stat`, and
+`--name-only` are allowed, as are path inspection, checksums, and `bash -n`
+syntax checks. Tool calls and policy decisions are logged.
+
+If one model response contains several tool calls, OPX executes the complete
+batch before sending all corresponding results back. Every failed call returns
+a structured error with a code, a concrete explanation, and a `retry_hint`.
+Malformed JSON, missing or unexpected arguments, wrong argument types, policy
+decisions, and execution failures therefore remain part of the agentic loop.
+The model can correct the next call instead of losing the conversation state.
+
+Skills are discovered through `06-coding-agent/skills/skills.json`. OPX first
+receives only their short descriptions and loads the complete instructions of
+a skill only when they are relevant to the current task. The catalog contains
+15 skills. Related procedures are intentionally combined: result verification
+includes self-review, debugging includes root-cause analysis, and codebase
+understanding includes targeted repository search. For questions about OPX
+itself, the `agent/opx-help` skill makes OPX read its current `opx.py` before
+answering, using the implementation as its source of truth.
+The self-referential `agent/extend-skills` skill lets OPX create or update
+skills and their catalog entries with its existing guarded tools, then verify
+the result by discovering and loading the changed skill.
+
+Without redirected input, prompts and approval answers come from the
+controlling terminal:
 
 ```bash
-OPX_ONLY_TOOLS=git,find,grep,read,list,tree \
-  ./06-coding-agent/opx.py 'Summarize the current repository state.'
+./06-coding-agent/opx.py
+
+Prompt: Create a small Python program that prints the current time.
 ```
 
-Supported control variables:
+For scripts and scheduled jobs, OPX accepts one complete prompt on standard
+input, runs its agentic loop, prints the final answer, and exits:
 
-| Variable | Effect |
-|---|---|
-| `OPX_ONLY_TOOLS` | Comma-separated list of tools visible to the model |
-| `OPX_AUTO_APPROVE` | Changes interactive approval for read or write operations |
-| `OPX_TOOL_TIMEOUT_SEC` | Timeout for diff tools; default `300` |
-| `OPX_MAX_TURNS` | Maximum number of outer agent turns; default `24` |
+```bash
+printf '%s\n' 'Read README.md and summarize it.' \
+  | ./06-coding-agent/opx.py
+```
 
-For a code-reading exercise, begin with `_tool_instances()`. From there, follow the individual tool classes and then the loop in `main()`.
+Approval questions still use the controlling terminal. An unattended prompt
+must therefore restrict itself to operations that are allowed without
+approval, such as creating a new, uniquely named report.
+
+The explicit `--yolo` mode removes that restriction:
+
+```bash
+printf '%s\n' 'Create report.md with a directory summary.' \
+  | ./06-coding-agent/opx.py --yolo
+```
+
+In YOLO mode, OPX skips Bash syntax checks and the complete inline policy. It
+also overwrites and replaces files without approval. Argument validation and
+execution timeouts remain active so the tool protocol can still function.
+
+`write_file` creates a new file without approval and asks before overwriting an
+existing file. `OPX_MAX_TURNS` limits the number of model requests for each
+entered prompt and defaults to `24`.
+
+For a code-reading exercise, start with `TOOLS`, continue with `call_tool`, and
+finish with the short agentic loop in `run_prompt`.
 
 ### 07 — Skills
 
@@ -332,16 +389,24 @@ without executing them unless execution is explicitly requested.
 
 ### 08 — Autonomous worker
 
-[`08-autonomous-worker`](08-autonomous-worker/) turns the summarization filter
-from chapter 01 into a small scheduled worker. It reads `README.md`, produces
-`latest-report.md`, and includes an example Cron entry without modifying the
-user's Crontab automatically.
+[`06-coding-agent/worker.sh`](06-coding-agent/worker.sh) demonstrates OPX as a
+scheduled worker. It downloads `WORKER_URL`, limits the input to 50,000
+characters, and pipes a summarization prompt into `opx.py`. OPX creates a new,
+timestamped Markdown file below `06-coding-agent/reports/`; it never needs to
+approve an overwrite. The web page is treated as untrusted data rather than as
+instructions for the agent. The worker invokes `opx.py --yolo` because a Cron
+job has no controlling terminal. It therefore runs without Bash guardrails or
+file-change approvals and should only be used in an expendable directory.
 
 Run it manually before adding the schedule:
 
 ```bash
-./08-autonomous-worker/worker.sh
+./06-coding-agent/worker.sh
 ```
+
+[`06-coding-agent/crontab.example`](06-coding-agent/crontab.example) contains
+the hourly Cron entry and a minimal `PATH`. Copy and adapt the entry manually;
+the repository does not modify the user's Crontab.
 
 ## Requirements
 
@@ -352,7 +417,10 @@ Most examples require:
 - an OpenAI-compatible endpoint providing `/v1/chat/completions`; and
 - a model supporting the feature used by the respective chapter.
 
-Individual scripts additionally use common tools such as `base64`, `fold`, `git`, `python3`, `realpath`, and `sed`. `06-coding-agent/opx.py` itself uses only Python's standard library, but some of its tools invoke external programs such as `git`, `rg`, `patch`, and `man`.
+Individual scripts additionally use common tools such as `base64`, `fold`,
+`git`, `python3`, `realpath`, and `sed`. `06-coding-agent/opx.py` itself uses
+Python's standard library. Its `list_files` tool uses `os.scandir`; external
+processes are started only through its guarded Bash tool.
 
 Depending on the example, the API server and model must support streaming, strict structured output, image input, or tool calling.
 
@@ -398,7 +466,17 @@ Their boundaries differ:
 
 - `05-operation-execution/opx-bash.sh` rejects shell composition and applies its inline `allow`/`ask`/`deny` policy. Allowed or approved commands can still affect the wider system.
 - `05-operation-execution/opx-rw.sh` has no Bash tool. It can list the current directory, read filenames without `/`, and create—but not overwrite—files without approval. Existing symlinks can still affect reads.
-- `06-coding-agent/opx.py` does not confine every tool to this repository and also provides network operations.
-- `OPX_AUTO_APPROVE` can reduce or bypass interactive checks in the Python agent.
+- `06-coding-agent/opx.py` allows relative and absolute paths in its file
+  tools. Its Bash tool follows the inline command policy. Potentially mutating
+  or extensible commands such as `find`, `env`, `chmod`, `touch`, and general
+  `git diff` or `git show` invocations require approval. A small set of exact,
+  read-only Git checks is allowed. Language runtimes, build and test tools,
+  network clients, text processors that can execute or write, and direct file
+  mutation commands are also explicitly set to `ask`. A policy match is still
+  only a compact workshop guardrail, not a complete shell sandbox.
+- `06-coding-agent/opx.py --yolo` disables the Bash syntax guard, inline
+  policy, and file-change approvals. A model can execute arbitrary shell
+  commands and overwrite arbitrary accessible paths in this mode.
 
-Run `opx-rw.sh` only in an expendable, isolated environment. Read requests carefully before approving the other agents, and use `OPX_ONLY_TOOLS` to restrict the Python agent to the tools needed for the task.
+Run coding-agent experiments in an expendable directory and read Bash or
+overwrite requests carefully before approving them.

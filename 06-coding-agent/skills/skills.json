@@ -1,0 +1,92 @@
+[
+  {
+    "name": "Plan Task",
+    "path": "agent/plan-task",
+    "file": "agent/plan-task/SKILL.md",
+    "purpose": "Turn an ambiguous or multi-step task into a short, executable plan before tool use."
+  },
+  {
+    "name": "Extend Skills",
+    "path": "agent/extend-skills",
+    "file": "agent/extend-skills/SKILL.md",
+    "purpose": "Add or update skills in OPX's own skill collection."
+  },
+  {
+    "name": "OPX Help",
+    "path": "agent/opx-help",
+    "file": "agent/opx-help/SKILL.md",
+    "purpose": "Answer questions about OPX by reading its current source code."
+  },
+  {
+    "name": "Verify Result",
+    "path": "agent/verify-result",
+    "file": "agent/verify-result/SKILL.md",
+    "purpose": "Verify completed work and review it critically before returning it."
+  },
+  {
+    "name": "Code Review",
+    "path": "coding/code-review",
+    "file": "coding/code-review/SKILL.md",
+    "purpose": "Review a change for correctness, regressions, maintainability, security and missing tests."
+  },
+  {
+    "name": "Debug",
+    "path": "coding/debug",
+    "file": "coding/debug/SKILL.md",
+    "purpose": "Find the cause of a defect or incident and apply a minimal fix when requested."
+  },
+  {
+    "name": "Implement Feature",
+    "path": "coding/implement-feature",
+    "file": "coding/implement-feature/SKILL.md",
+    "purpose": "Implement a requested feature while preserving existing architecture and behavior."
+  },
+  {
+    "name": "Refactor",
+    "path": "coding/refactor",
+    "file": "coding/refactor/SKILL.md",
+    "purpose": "Improve structure or maintainability without intentionally changing observable behavior."
+  },
+  {
+    "name": "Understand Codebase",
+    "path": "coding/understand-codebase",
+    "file": "coding/understand-codebase/SKILL.md",
+    "purpose": "Find relevant code and build a reliable model of an unfamiliar repository."
+  },
+  {
+    "name": "Write Tests",
+    "path": "coding/write-tests",
+    "file": "coding/write-tests/SKILL.md",
+    "purpose": "Create focused tests that protect important behavior and catch plausible regressions."
+  },
+  {
+    "name": "Architecture Summary",
+    "path": "documentation/architecture-summary",
+    "file": "documentation/architecture-summary/SKILL.md",
+    "purpose": "Produce a concise architecture description based on the actual repository."
+  },
+  {
+    "name": "Document API",
+    "path": "documentation/document-api",
+    "file": "documentation/document-api/SKILL.md",
+    "purpose": "Document an API accurately enough for another developer to integrate without reading the implementation."
+  },
+  {
+    "name": "Write README",
+    "path": "documentation/write-readme",
+    "file": "documentation/write-readme/SKILL.md",
+    "purpose": "Create or improve repository documentation so a new contributor can understand, run and use the project."
+  },
+  {
+    "name": "Inspect Git History",
+    "path": "git/inspect-history",
+    "file": "git/inspect-history/SKILL.md",
+    "purpose": "Use repository history to understand why code exists, when behavior changed or who introduced it."
+  },
+  {
+    "name": "Compare Alternatives",
+    "path": "investigation/compare-alternatives",
+    "file": "investigation/compare-alternatives/SKILL.md",
+    "purpose": "Evaluate competing implementation approaches against explicit technical criteria."
+  }
+]

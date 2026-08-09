@@ -1,1 +1,4 @@
 .DS_Store
+__pycache__/
+06-coding-agent/cron.log
+06-coding-agent/reports/

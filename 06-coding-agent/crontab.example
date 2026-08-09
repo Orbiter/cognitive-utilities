@@ -1,0 +1,9 @@
+# Run the OPX web-report worker at the start of every hour.
+# Replace /absolute/path/to/cognitive-utilities with the actual repository path.
+# Reports are written below 06-coding-agent/reports/.
+# The worker uses OPX --yolo and therefore runs without guardrails or approvals.
+SHELL=/bin/bash
+PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin
+WORKER_URL=https://example.com/
+
+0 * * * * cd /absolute/path/to/cognitive-utilities && ./06-coding-agent/worker.sh >> ./06-coding-agent/cron.log 2>&1
