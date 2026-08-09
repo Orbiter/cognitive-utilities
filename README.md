@@ -204,7 +204,7 @@ Compare `calculator-tool-call.sh`, `calculator-tool-response.sh`, and `calculato
 |---|---|
 | `sysop-synthetic-log.sh` | Follows identifiers through an embedded synthetic log |
 | `sysop-system-log.sh` | Lists and searches files below `/var/log`, with call and repetition limits |
-| `research.sh` | Experiments with an embedded cellular automaton to determine its rule |
+| `mastermind-research.sh` | Experiments with a four-bit Mastermind game to determine its hidden code |
 | `mandelbrot.sh` | Renders ASCII Mandelbrot observations while searching for a smaller copy of the reference image |
 | `search-server.py` | Provides JSON search results from a local copy of the BGB through HTTP |
 | `search-agent.py` | Uses that search API as a tool in a German-language agentic loop |
@@ -217,8 +217,8 @@ The synthetic examples do not modify the system, making them a good place to stu
 printf '%s\n' 'Diagnose incident INC-781.' \
   | ./04-agentic-loop/sysop-synthetic-log.sh
 
-printf '%s\n' 'Determine the hidden Wolfram rule.' \
-  | ./04-agentic-loop/research.sh
+printf '%s\n' 'Find the hidden code.' \
+  | ./04-agentic-loop/mastermind-research.sh
 ```
 
 Find the `while` loop in each script. The important detail is that every tool result causes both the assistant message containing the tool call and a corresponding tool message to be appended to `messages`.
@@ -239,13 +239,14 @@ The [chapter README](04-agentic-loop/README.md) describes the variants in more d
 
 ### 05 — Controlled local operations
 
-[`05-operation-execution`](05-operation-execution/) applies the agentic loop to general local operations. Tool requests are shown through `/dev/tty` and can be approved or rejected individually.
+[`05-operation-execution`](05-operation-execution/) applies the agentic loop to general local operations. Its variants deliberately demonstrate different levels of control, from direct execution to individual approval and strict self-isolation.
 
 | Script | Available operations |
 |---|---|
-| `opx-bash.sh` | One Bash command per tool call; shell composition characters are rejected and every call requires approval |
-| `opx-rw.sh [-y]` | Adds dedicated, workspace-bounded `read_file` and `write_file` tools to the Bash tool |
-| `opx-evo.sh [-y]` | Can only read, replace, and restart its own Bash source |
+| `opx-bash.sh` | Guarded Bash commands with an inline, last-match-wins `allow`/`ask`/`deny` policy |
+| `opx-bash-terminal.sh` | Interactive, non-streaming Bash agent that retains the complete conversation and tool history |
+| `opx-rw.sh` | Current-directory `list_files`, `read_file`, and no-overwrite `write_file` tools |
+| `opx-evo.sh` | Can only read, replace, and restart its own Bash source, without approval prompts |
 
 A read-oriented task:
 
@@ -254,6 +255,23 @@ printf '%s\n' 'Inspect this directory and summarize its contents.' \
   | ./05-operation-execution/opx-bash.sh
 ```
 
+`opx-bash.sh` can process several commands returned in one model response. Each
+call is logged to standard error and checked for shell-composition characters.
+An inline JSON policy is evaluated in source order, with the last matching rule
+winning: `allow` runs directly, `ask` requests approval on `/dev/tty`, and `deny`
+rejects the command. The character guard also rejects command substitutions and
+newlines before the configurable policy is evaluated.
+
+For an ongoing conversation with the same Bash tools and guardrails, start the
+non-streaming terminal variant without a pipe:
+
+```bash
+./05-operation-execution/opx-bash-terminal.sh
+```
+
+Every final answer, tool request, and tool result remains in its conversation
+context until the program is closed with `exit`, `quit`, `ende`, or EOF.
+
 A task that may change a file:
 
 ```bash
@@ -261,13 +279,18 @@ printf '%s\n' 'Inspect the current directory and create a short report.' \
   | ./05-operation-execution/opx-rw.sh
 ```
 
-Without an option, `opx-rw.sh` asks before every tool operation. Press Enter to approve or enter `n` to reject it. `-y` approves every requested operation for the entire run and should be used only in an expendable working directory. Its dedicated file tools make reading and writing explicit instead of relying on Bash.
+`opx-rw.sh` can process several tool calls returned in one model response. It logs tool calls to standard error, executes the complete batch in order, appends one result for every tool-call ID, and then asks the model again. Logs show all arguments except `write_file` content, for which only the filename is printed. Its file tools are intentionally direct: `list_files` runs `ls -la`, `read_file` calls `cat`, and `write_file` creates a new file. `list_files` can be called only once per run. The read and write tools accept only a filename in the current directory and reject `/`; `write_file` also rejects existing files, uses Bash's no-clobber mode, and can be called only once per run. Its result tells the model to finish with a final answer. There are no approval or size checks.
 
 `opx-evo.sh` is a deliberately isolated self-modification experiment. It has no
 Bash tool and accepts no paths: the model can only read its own source, replace
-that source after syntax validation, and restart with the original prompt.
+that source after syntax validation, and restart with the original prompt. These
+operations execute directly without interactive approval. Tool calls are logged
+to standard error, while replacement source content is omitted from the log.
+The evolution prompt requires newly added tools to preserve this logging and add
+redaction for large or sensitive parameters. Its API request permits completions
+of up to 200,000 tokens, subject to the model server's total context limit.
 
-Compare the tool descriptions and guardrails in these scripts: which characters does the Bash tool reject, how does `write_file` validate its path, and which responsibilities still remain with the human operator?
+Compare the variants: `opx-bash.sh` validates and asks before commands, `opx-rw.sh` exposes only bounded file operations, and `opx-evo.sh` confines modification to its own source. Which responsibilities remain with the human operator in each case?
 
 ### 06 — The larger OPX coding agent
 
@@ -369,12 +392,13 @@ These scripts are demonstration and teaching code. They prioritize visible mecha
 
 ## Tool-execution safety
 
-Chapters 00 through 04 send API requests, transform data streams, read this repository, or inspect `/var/log`. The scripts in chapters 05 and 06 can execute commands and modify local files after approval.
+Chapters 00 through 04 send API requests, transform data streams, read this repository, or inspect `/var/log`. The scripts in chapters 05 and 06 can execute commands and modify local files. Not every variant asks for approval.
 
 Their boundaries differ:
 
-- `05-operation-execution/opx-rw.sh` restricts `read_file` and `write_file` to paths below the current working directory.
+- `05-operation-execution/opx-bash.sh` rejects shell composition and applies its inline `allow`/`ask`/`deny` policy. Allowed or approved commands can still affect the wider system.
+- `05-operation-execution/opx-rw.sh` has no Bash tool. It can list the current directory, read filenames without `/`, and create—but not overwrite—files without approval. Existing symlinks can still affect reads.
 - `06-coding-agent/opx.py` does not confine every tool to this repository and also provides network operations.
-- `-y` and `OPX_AUTO_APPROVE` can reduce or bypass interactive checks.
+- `OPX_AUTO_APPROVE` can reduce or bypass interactive checks in the Python agent.
 
-Read tool requests before approving them, run write-capable examples in an expendable working directory, and use `OPX_ONLY_TOOLS` to restrict the Python agent to the tools needed for the task.
+Run `opx-rw.sh` only in an expendable, isolated environment. Read requests carefully before approving the other agents, and use `OPX_ONLY_TOOLS` to restrict the Python agent to the tools needed for the task.

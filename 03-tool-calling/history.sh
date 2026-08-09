@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # git historian: answer questions about this repository's history (with up to two tool calls)
+# We provide two tools: git_log and git_show
 # zero calls:         echo "What is a Git commit?" | ./history.sh
 # one git_log call:   echo "What are the latest commits in this repository?" | ./history.sh
 # one git_show call:  echo "Summarize commit 182b60b." | ./history.sh

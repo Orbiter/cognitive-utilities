@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # repository detective: answer questions about the files in the repository ( with up to two tool calls)
+# we provide two tools: find_file and read_file
 # zero calls:         echo "What is a README file?" | ./inspect.sh
 # one find_file call: echo "Which bash file contains 'Python Guardrails'?" | ./inspect.sh
 # one read_file call: echo "Summarize the README.md." | ./inspect.sh

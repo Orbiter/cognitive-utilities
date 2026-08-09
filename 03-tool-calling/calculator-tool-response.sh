@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # calculator example: assistant response after a calculation
-# usage: ./calculator-tool-response-new.sh
+# usage: ./calculator-tool-response.sh
 
 prompt="How many seconds are there in 17 days?"
 

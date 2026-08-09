@@ -10,33 +10,12 @@ from urllib.request import urlopen
 
 
 # Beispielprompts:
-# Welche Rechte habe ich bei einem mangelhaften Kaufgegenstand?
-# Welche Voraussetzungen gelten für Nacherfüllung, Rücktritt und Minderung?
-# Wann verjähren die Mängelansprüche eines Käufers?
-# Unter welchen Voraussetzungen kann die Miete gemindert werden?
-# Welche Kündigungsfristen gelten bei einem Wohnungsmietvertrag?
-# Wann kann ein Mietvertrag außerordentlich gekündigt werden?
-# Wann gerät ein Schuldner in Verzug und welche Folgen hat das?
-# Unter welchen Voraussetzungen kann Schadensersatz wegen einer Pflichtverletzung verlangt werden?
-# Wann kann eine Willenserklärung wegen Irrtums angefochten werden?
-# Welche Regeln gelten für Verträge mit Minderjährigen?
-# Welche Anforderungen gelten für ein eigenhändiges Testament?
-# Wer erbt nach der gesetzlichen Erbfolge, wenn kein Testament existiert?
-# Wann besteht bei einem Verbrauchervertrag ein Widerrufsrecht?
-# Welche Rechte habe ich, wenn eine gekaufte Software mangelhaft ist?
 # Welche Gewährleistungsregeln gelten für digitale Produkte und Software-Updates?
 # Wann ist die Entwicklung einer individuellen Software als Werkvertrag einzuordnen?
 # Welche Ansprüche können entstehen, wenn ein Programmierauftrag mangelhaft ausgeführt wurde?
-# Kann der Verlust von Daten durch eine Pflichtverletzung einen Schadensersatzanspruch begründen?
-# Welche vertraglichen Pflichten können Anbieter bei mangelhafter IT-Sicherheit treffen?
-# Wer haftet nach dem BGB, wenn eine unsichere Software einen Schaden verursacht?
-# Was sagt das BGB zu sogenannten Hackerparagraphen, und reicht diese Quelle für die Antwort aus?
 # Sind das Umgehen von Zugangsschutz und der Besitz von Hackerwerkzeugen im BGB geregelt?
 # Welche BGB-Regeln können für einen Vertrag über frei verfügbare Daten gelten?
 # Kann allein anhand des BGB beurteilt werden, ob Daten frei verwendet werden dürfen?
-# Welche vertraglichen Regeln gelten, wenn offene Daten unter bestimmten Bedingungen bereitgestellt werden?
-# Vergleiche Nacherfüllung, Rücktritt und Minderung und nenne die einschlägigen Paragraphen.
-# Fasse die gefundenen Regelungen in einfacher Sprache zusammen und belege jede Aussage mit einem Paragraphen.
 
 MAX_DURCHLAEUFE = 10
 SEARCH_API_URL = os.environ.get(

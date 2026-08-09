@@ -67,7 +67,7 @@ source ../configure.sh
 |---|---|
 | `sysop-synthetic-log.sh` | Demonstrates the smallest useful agentic loop with one tool and deterministic data. |
 | `sysop-system-log.sh` | Applies the loop to real system logs with two tools and practical limits. |
-| `research.sh` | Discovers an embedded cellular-automaton rule through repeated experiments. |
+| `mastermind-research.sh` | Discovers a hidden four-bit code through repeated experiments. |
 | `mandelbrot.sh` | Searches an ASCII Mandelbrot image through repeated render experiments. |
 | `search-server.py` | Searches one local BGB document and exposes results as JSON over HTTP. |
 | `search-agent.py` | Uses the BGB search API as a tool in a German-language agentic loop. |
@@ -165,7 +165,34 @@ can see the original task, previous decisions, and all observations.
 Each tool result is connected to its request through `tool_call_id`. Omitting an
 assistant call or one of its results would leave the protocol incomplete.
 
-## 2. Investigate real system logs
+## 2. Research a hidden binary code
+
+Run:
+
+```bash
+echo "Find the hidden code." | ./mastermind-research.sh
+```
+
+The hidden code contains four binary digits. The agent's only tool tests one
+possible code and returns the number of bits in the correct position plus the
+first position that is wrong. Because each bit has only two states, the tool
+also supplies the next experiment directly:
+
+```text
+experiment("0000")
+  → correct_positions=1, first_wrong_position=1, next_guess="1000"
+  → evidence="Position 1, counted from the left, is the first mismatch ..."
+```
+
+The agent starts with `0000` and passes each `next_guess` back into the tool.
+This deliberately simple chain keeps the focus on the repeated tool exchange.
+When `next_guess` is `null`, four correct positions prove the solution. The
+script limits the investigation to six experiments, while the tool schema lists
+all 16 possible codes explicitly. Its final response must explain the complete
+evidence chain rather than merely print the discovered code. The tool supplies
+plain-language evidence to prevent ambiguity about bit numbering.
+
+## 3. Investigate real system logs
 
 The synthetic example has one known tool and perfect data. Real investigations
 need discovery, bounded access, and failure handling.

@@ -1,12 +1,6 @@
 #!/usr/bin/env bash
-# agentic loop for guarded, user-approved Bash commands
-# usage: echo "Inspect this directory and summarize it." | ./opx-bash.sh
-#
-# examples:
-# echo "Show the operating-system version." | ./opx-bash.sh
-# echo "Inspect the current directory and summarize its contents." | ./opx-bash.sh
-# echo "Report disk usage for the current directory." | ./opx-bash.sh
-# echo "Inspect /var/log and report recent errors. Make a full audit." | ./opx-bash.sh
+# interactive, non-streaming Bash agent that retains the conversation history
+# usage: ./opx-bash-terminal.sh
 
 set -uo pipefail
 
@@ -98,7 +92,7 @@ run_bash() {
 }
 
 system_prompt='You are a Linux system operator working in the current directory.
-Use Bash to inspect the system until you can answer the request.
+Use Bash to inspect or operate the system when that helps answer the request.
 
 Tool behavior:
 - You may request several independent Bash tool calls in one response.
@@ -106,12 +100,8 @@ Tool behavior:
 - Pipes, redirections, separators, command substitutions, and newlines are rejected.
 - An inline last-match-wins policy decides whether a command is allowed, denied, or requires approval.
 
-When the investigation is complete, give a short final answer.'
-
-messages=$(jq -n --arg system_prompt "$system_prompt" --arg prompt "$(cat)" '[
-  {"role":"system","content":$system_prompt},
-  {"role":"user","content":$prompt}
-]')
+Remember the complete conversation and use earlier results when answering later requests.
+When the work is complete, give a short final answer.'
 
 tools='[
   {
@@ -135,38 +125,73 @@ tools='[
   }
 ]'
 
-# Start the agentic loop.
-answer=$(llm)
-while jq -e '.choices[0].message.tool_calls | length > 0' >/dev/null <<<"$answer"; do
-  assistant=$(jq '.choices[0].message' <<<"$answer")
-  messages=$(jq --argjson assistant "$assistant" '. + [$assistant]' <<<"$messages")
+messages=$(jq -n --arg system_prompt "$system_prompt" '[
+  {"role":"system","content":$system_prompt}
+]')
 
-  # Process every tool call from this model response in order.
-  while IFS= read -r call; do
-    name=$(jq -r '.function.name' <<<"$call")
-    arguments=$(jq -r '.function.arguments' <<<"$call")
-    printf 'Tool: %s %s\n' "$name" "$arguments" >&2
+printf "OPX Bash Terminal (exit with 'exit', 'quit', or 'ende')\n\n"
 
-    # Dispatch the requested tool.
-    case "$name" in
-      bash)
-        if command=$(jq -er '.command' <<<"$arguments"); then
-          result=$(run_bash "$command")
-        else
-          result=$(tool_result 1 'Invalid bash arguments.')
-        fi
-        ;;
-      *)
-        result=$(tool_result 1 'Unknown tool.')
-        ;;
-    esac
+while true; do
+  printf 'Prompt: '
+  if ! IFS= read -r prompt; then
+    printf '\n'
+    break
+  fi
 
-    messages=$(jq --arg id "$(jq -r '.id' <<<"$call")" --arg result "$result" \
-      '. + [{"role":"tool","tool_call_id":$id,"content":$result}]' <<<"$messages")
-  done < <(jq -c '.choices[0].message.tool_calls[]' <<<"$answer")
+  [[ -n ${prompt//[[:space:]]/} ]] || continue
+  normalized=$(printf '%s' "$prompt" | tr '[:upper:]' '[:lower:]')
+  case "$normalized" in exit|quit|ende) break ;; esac
 
-  answer=$(llm)
+  # Extend the persistent context with this conversation turn.
+  messages=$(jq --arg prompt "$prompt" '. + [{"role":"user","content":$prompt}]' \
+    <<<"$messages")
+
+  if ! answer=$(llm); then
+    messages=$(jq '.[0:-1]' <<<"$messages")
+    printf '\nError: LLM request failed.\n\n' >&2
+    continue
+  fi
+
+  # Run the agentic tool loop for this conversation turn.
+  while jq -e '.choices[0].message.tool_calls | length > 0' >/dev/null <<<"$answer"; do
+    assistant=$(jq '.choices[0].message' <<<"$answer")
+    messages=$(jq --argjson assistant "$assistant" '. + [$assistant]' <<<"$messages")
+
+    while IFS= read -r call; do
+      name=$(jq -r '.function.name' <<<"$call")
+      arguments=$(jq -r '.function.arguments' <<<"$call")
+      printf 'Tool: %s %s\n' "$name" "$arguments" >&2
+
+      case "$name" in
+        bash)
+          if command=$(jq -er '.command' <<<"$arguments"); then
+            result=$(run_bash "$command")
+          else
+            result=$(tool_result 1 'Invalid bash arguments.')
+          fi
+          ;;
+        *)
+          result=$(tool_result 1 'Unknown tool.')
+          ;;
+      esac
+
+      messages=$(jq --arg id "$(jq -r '.id' <<<"$call")" --arg result "$result" \
+        '. + [{"role":"tool","tool_call_id":$id,"content":$result}]' <<<"$messages")
+    done < <(jq -c '.choices[0].message.tool_calls[]' <<<"$answer")
+
+    if ! answer=$(llm); then
+      printf '\nError: LLM request failed after a tool call.\n\n' >&2
+      answer=
+      break
+    fi
+  done
+
+  [[ -n $answer ]] || continue
+  if response=$(jq -er '.choices[0].message.content' <<<"$answer"); then
+    printf '\nAnswer: %s\n\n' "$response"
+    messages=$(jq --argjson assistant "$(jq '.choices[0].message' <<<"$answer")" \
+      '. + [$assistant]' <<<"$messages")
+  else
+    printf '\nError: LLM returned no final answer.\n\n' >&2
+  fi
 done
-
-# Print the final response when the model no longer requests a tool.
-jq -er '.choices[0].message.content' <<<"$answer"
