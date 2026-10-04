@@ -19,3 +19,12 @@ export OPENAI_REASONING_EFFORT="none"
 # make sure environment is supported by inference engine
 echo "Pulling model $OPENAI_MODEL for ollama" >&2
 ollama pull $OPENAI_MODEL
+
+
+# decision backend: Ollama >= 0.35.0, System One API
+export SYSTEMONE_BASE_URL="$OPENAI_BASE_URL"
+export SYSTEMONE_API_KEY="$OPENAI_API_KEY"
+export SYSTEMONE_MODEL="tev1:4b-q4_K_M"
+
+echo "Pulling model $SYSTEMONE_MODEL for ollama" >&2
+ollama pull "$SYSTEMONE_MODEL" || return 1
