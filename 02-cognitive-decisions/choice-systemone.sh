@@ -6,7 +6,7 @@ set -euo pipefail
 input_json=$(jq -Rn --arg value "$(cat)" '$value')
 curl -fSs "$SYSTEMONE_BASE_URL/v1/systemone" \
   -H "Authorization: Bearer $SYSTEMONE_API_KEY" -H "Content-Type: application/json" \
-  -d @- <<EOF | jq -er '.answers.category.choice'
+  -d @- <<EOF | jq -er '.answers.category'
 {
   "model": "$SYSTEMONE_MODEL",
   "state": $input_json,
