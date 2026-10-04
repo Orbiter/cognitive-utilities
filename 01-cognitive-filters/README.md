@@ -160,56 +160,7 @@ Unlike the other filters, `translate.sh` explicitly rejects empty or whitespace-
 
 Its strict schema requires one string named `translation`. The final `jq` filter extracts that field as plain text.
 
-## 3. `classify.sh` — choosing from a fixed vocabulary
-
-`classify.sh` maps input text to exactly one category:
-
-```sh
-echo 'The application crashes during startup.' | ./classify.sh
-```
-
-Possible output:
-
-```text
-bug
-```
-
-The schema restricts `category` with an enumeration:
-
-```json
-{
-  "category": {
-    "type": "string",
-    "enum": ["bug", "feature", "question", "other"]
-  }
-}
-```
-
-The possible output values are therefore:
-
-- `bug` for defect reports;
-- `feature` for requested capabilities;
-- `question` for requests for information; and
-- `other` when none of the first three categories applies.
-
-The model returns an object such as `{"category":"bug"}` in the message content. The script parses it, selects `.category`, and uses `jq -r` to print only the unquoted label.
-
-A stable label is easy to use in shell control flow:
-
-```sh
-category=$(echo 'Please add a dark mode.' | ./classify.sh)
-
-case "$category" in
-  bug)      echo 'Send to the defect queue' ;;
-  feature)  echo 'Send to product planning' ;;
-  question) echo 'Send to support' ;;
-  other)    echo 'Review manually' ;;
-esac
-```
-
-This filter demonstrates why schema constraints matter: downstream code can compare a small known set of values instead of trying to interpret free-form prose.
-
-## 4. `extract.sh` — converting text into a data structure
+## 3. `extract.sh` — converting text into a data structure
 
 `extract.sh` turns unstructured invoice text into a structured JSON object:
 

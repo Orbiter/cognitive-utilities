@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # simple filter example: text to bug|feature|question|other
-# usage: echo 'The application crashes during startup.' | ./classify-systemone.sh
+# usage: echo 'The application crashes during startup.' | ./choice-systemone.sh
 
 set -euo pipefail
 input_json=$(jq -Rn --arg value "$(cat)" '$value')
