@@ -245,7 +245,7 @@ The [chapter README](04-agentic-loop/README.md) describes the variants in more d
 |---|---|
 | `opx-bash.sh` | Guarded Bash commands with an inline, last-match-wins `allow`/`ask`/`deny` policy |
 | `opx-bash-terminal.sh` | Interactive, non-streaming Bash agent that retains the complete conversation and tool history |
-| `opx-rw.sh` | Current-directory `list_files`, `read_file`, and no-overwrite `write_file` tools |
+| `opx-rw.sh` | `list_files`, recursive `search_files`, `read_file`, no-overwrite `write_file`, and exact-text `edit_file` tools |
 | `opx-evo.sh` | Can only read, replace, and restart its own Bash source, without approval prompts |
 
 A read-oriented task:
@@ -279,7 +279,44 @@ printf '%s\n' 'Inspect the current directory and create a short report.' \
   | ./05-operation-execution/opx-rw.sh
 ```
 
-`opx-rw.sh` can process several tool calls returned in one model response. It logs tool calls to standard error, executes the complete batch in order, appends one result for every tool-call ID, and then asks the model again. Logs show all arguments except `write_file` content, for which only the filename is printed. Its file tools are intentionally direct: `list_files` runs `ls -la`, `read_file` calls `cat`, and `write_file` creates a new file. `list_files` can be called only once per run. The read and write tools accept only a filename in the current directory and reject `/`; `write_file` also rejects existing files, uses Bash's no-clobber mode, and can be called only once per run. Its result tells the model to finish with a final answer. There are no approval or size checks.
+`opx-rw.sh` can process several tool calls returned in one model response. It logs tool calls to standard error, executes the complete batch in order, appends one result for every tool-call ID, and then asks the model again. Logs show all arguments except `write_file` content and `edit_file` edits, for which only the filename is printed. `list_files` runs `ls -la` (or `ls -laR` for recursive listings), `read_file` calls `cat`, `write_file` creates a new file without overwriting, and `edit_file` replaces unique, non-overlapping exact-text matches.
+
+Both file-tool versions work throughout the current directory tree. `list_files`
+accepts a nullable relative directory `path` (default `.`) and nullable boolean
+`recursive` (default `false`); setting `recursive` to `true` lists the entire
+subtree, including hidden directories. `read_file`, `write_file`, and `edit_file`
+accept nested filenames such as `src/docs/notes.txt`. New files can be created in
+existing subdirectories; these tools do not create missing parent directories.
+
+Small `jq` helpers, `tool` and `object_schema`, build the shared tool schema
+structure and derive required fields from each property definition, including
+the objects inside `edit_file` edits.
+
+`search_files` requires ripgrep (`rg`) and searches the current directory tree or a relative file or directory path without `..` components. It accepts a regex `pattern`, optional `fixed_strings` and `ignore_case` flags, a file `glob` (including exclusions such as `!vendor/**`), `context_lines`, and `max_results`. Nullable options use defaults: path `.`, regex matching, case-sensitive search, no extra glob, no context, and 100 matching lines across all files. Ripgrep skips hidden, ignored, and binary files by default. Results use the existing `{exit_code, output}` format with `path:line:text` lines and an explicit truncation notice when the global match limit is exceeded; context lines do not count toward that limit. No matches returns exit code 0 with `No matches found.`, while search errors retain their nonzero exit code and diagnostic. File operations run without approval prompts.
+
+`opx-rw.py` implements the same five tools and agentic loop using Python's
+standard library. Shared schema helpers remove repeated JSON structure,
+and native strings and file operations replace shell quoting and `jq` calls.
+It uses the same `OPENAI_*` configuration, tool-result format, search defaults,
+and log redaction. No Python packages are required; `list_files` still uses `ls`
+and `search_files` uses `rg`. For example:
+
+```bash
+printf '%s\n' 'Find TODO comments in shell scripts throughout this directory tree.' \
+  | python3 ./05-operation-execution/opx-rw.py
+```
+
+Both versions accept `--systemprompt FILE` to append a UTF-8 file to the built-in
+system prompt, separated by a blank line. The user request still comes from
+standard input. Repeat the option to append multiple files in order; unreadable
+files cause an error before the model is called.
+
+```bash
+printf '%s\n' 'Review the files in src/.' \
+  | ./05-operation-execution/opx-rw.sh --systemprompt instructions.txt
+printf '%s\n' 'Review the files in src/.' \
+  | python3 ./05-operation-execution/opx-rw.py --systemprompt instructions.txt
+```
 
 `opx-evo.sh` is a deliberately isolated self-modification experiment. It has no
 Bash tool and accepts no paths: the model can only read its own source, replace
