@@ -41,7 +41,7 @@ SYSTEM_PROMPT = """
 You are a small coding agent working in the current directory.
 Prefer the dedicated file tools and use Bash only when necessary.
 Keep projects in one source file unless the user requests otherwise.
-Prefer replace_in_file over rewriting a complete existing file.
+Prefer edit_file over rewriting a complete existing file.
 Discover and read a relevant skill when its procedure would help the task.
 Load only skills that are actually needed.
 For questions about OPX itself, load the OPX Help skill before answering.
@@ -135,7 +135,7 @@ TOOLS = [
     ),
     tool(
         "write_file",
-        "Create a file directly or overwrite it after approval.",
+        "Create a file directly or overwrite it after approval. For small changes, prefer edit_file",
         {
             "path": PATH,
             "content": {
@@ -146,20 +146,26 @@ TOOLS = [
         ["path", "content"],
     ),
     tool(
-        "replace_in_file",
-        "Replace one unique text occurrence after approval.",
+        "edit_file",
+        "Replace texts in one file. Every non-empty oldText must match exactly once in the original file; "
+        "otherwise nothing is changed. Edits must not overlap. For large changes in small files, prefer write_file",
         {
             "path": PATH,
-            "old": {
-                "type": "string",
-                "description": "Existing text that must occur exactly once.",
-            },
-            "new": {
-                "type": "string",
-                "description": "Replacement text.",
+            "edits": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "oldText": {"type": "string"},
+                        "newText": {"type": "string"},
+                    },
+                    "required": ["oldText", "newText"],
+                    "additionalProperties": False,
+                },
             },
         },
-        ["path", "old", "new"],
+        ["path", "edits"],
     ),
     tool(
         "list_skills",
@@ -179,19 +185,6 @@ TOOLS = [
         ["skill"],
     ),
 ]
-
-def enable_yolo():
-    global YOLO
-    YOLO = True
-    descriptions = {
-        "bash": "Run one unguarded Bash command in YOLO mode.",
-        "write_file": "Create or overwrite a file without approval.",
-        "replace_in_file": "Replace one unique text occurrence without approval.",
-    }
-    for item in TOOLS:
-        function = item["function"]
-        if function["name"] in descriptions:
-            function["description"] = descriptions[function["name"]]
 
 
 def terminal_input(prompt=""):
@@ -420,13 +413,18 @@ def write_file(path, content):
     return result(True, f"Wrote {path}.", path=path)
 
 
-def replace_in_file(path, old, new):
+def edit_file(path, edits):
     path = full_path(path)
-    if not old:
+    if not isinstance(edits, list) or not edits or any(
+        not isinstance(item, dict) or set(item) != {"oldText", "newText"}
+        or not all(isinstance(value, str) for value in item.values())
+        or not item["oldText"] for item in edits
+    ):
         return tool_error(
-            "empty_old_text",
-            "The old text must not be empty.",
-            "Read the file and retry with the exact non-empty text to replace.",
+            "invalid_edits",
+            "Edits must be a non-empty array of oldText/newText strings; "
+            "oldText must not be empty.",
+            "Read the file and retry with exact non-empty text to replace.",
             path=path,
         )
     try:
@@ -440,20 +438,25 @@ def replace_in_file(path, old, new):
             path=path,
         )
 
-    matches = content.count(old)
-    if matches != 1:
-        message = f"Old text occurs {matches} times; expected exactly once."
-        hint = (
-            "Read the current file and retry with text that occurs exactly once."
-            if matches == 0 else
-            "Retry with a larger, unique old text fragment."
-        )
+    replacements = []
+    for index, item in enumerate(edits):
+        old = item["oldText"]
+        start = content.find(old)
+        if start < 0 or content.find(old, start + 1) >= 0:
+            return tool_error(
+                "old_text_not_unique",
+                f"Edit {index + 1}: oldText must occur exactly once.",
+                "Read the current file and retry with unique text for every edit.",
+                path=path,
+            )
+        replacements.append((start, start + len(old), item["newText"]))
+    replacements.sort()
+    if any(a[1] > b[0] for a, b in zip(replacements, replacements[1:])):
         return tool_error(
-            "old_text_not_unique",
-            message,
-            hint,
+            "overlapping_edits",
+            "Edits overlap; nothing was changed.",
+            "Combine overlapping edits into one replacement.",
             path=path,
-            matches=matches,
         )
     if not approve(f"Replace text in '{path}'?"):
         return tool_error(
@@ -464,9 +467,11 @@ def replace_in_file(path, old, new):
             path=path,
         )
 
+    for start, end, new in reversed(replacements):
+        content = content[:start] + new + content[end:]
     try:
         with open(path, "w", encoding="utf-8", newline="") as file:
-            file.write(content.replace(old, new, 1))
+            file.write(content)
     except OSError as error:
         return tool_error(
             "write_failed",
@@ -474,7 +479,7 @@ def replace_in_file(path, old, new):
             "Correct the path or permissions, then read the file before retrying.",
             path=path,
         )
-    return result(True, f"Updated {path}.", path=path, matches=1)
+    return result(True, f"Updated {path}.", path=path, matches=len(edits))
 
 
 def skill_catalog():
@@ -574,7 +579,7 @@ TOOL_HANDLERS = {
     "list_files": list_files,
     "read_file": read_file,
     "write_file": write_file,
-    "replace_in_file": replace_in_file,
+    "edit_file": edit_file,
     "list_skills": list_skills,
     "read_skill": read_skill,
 }
@@ -681,9 +686,8 @@ def call_tool(call):
     shown = arguments
     if name == "write_file":
         shown = {"path": arguments.get("path"), "content": "<omitted>"}
-    if name == "replace_in_file":
-        shown = {"path": arguments.get("path"), "old": "<omitted>"}
-        shown["new"] = "<omitted>"
+    if name == "edit_file":
+        shown = {"path": arguments.get("path"), "edits": "<omitted>"}
     print(f"Tool: {name} {json.dumps(shown)}", file=sys.stderr)
 
     handler = TOOL_HANDLERS[name]
@@ -770,7 +774,8 @@ def main():
     if arguments not in ([], ["--yolo"]):
         raise SystemExit("Usage: ./opx.py [--yolo]")
     if arguments:
-        enable_yolo()
+        global YOLO
+        YOLO = True
         print(
             "WARNING: --yolo disables Bash guardrails and approvals.",
             file=sys.stderr,

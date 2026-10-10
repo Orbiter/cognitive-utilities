@@ -23,8 +23,10 @@ collection and `skills.json` as editable parts of OPX itself.
    that clearly state what it does and when it should be loaded.
 6. For a new skill, request approval for one `mkdir -p` Bash command, then use
    `write_file` to create its `SKILL.md`.
-7. Use `replace_in_file` to add or update its `name`, `path`, `file`, and
-   `purpose` entry in `skills.json` while preserving valid JSON.
+7. Use `edit_file` with `path` and an `edits` array of `oldText`/`newText` replacements
+   to add or update its `name`, `path`, `file`, and `purpose` entry in
+   `skills.json` while preserving valid JSON. Each `oldText` must match exactly
+   once, and edits must not overlap.
 8. For an existing skill, read it first and make the smallest exact replacement.
 9. Call `list_skills`, then `read_skill` for the changed skill to verify that
    discovery and loading both work.

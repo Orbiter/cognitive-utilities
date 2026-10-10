@@ -307,7 +307,7 @@ utility:
 | `list_files` | List absolute paths in a directory |
 | `read_file` | Read a relative or absolute file path |
 | `write_file` | Create a path, or ask before overwriting it |
-| `replace_in_file` | Replace one unique text occurrence after approval |
+| `edit_file` | Replace text in one file after approval; every `oldText` must match exactly once, and edits must not overlap, or nothing is changed |
 | `bash` | Run one command under the inline Bash policy |
 | `list_skills` | List the bundled skills and their purposes |
 | `read_skill` | Load one selected `SKILL.md` into the conversation |
