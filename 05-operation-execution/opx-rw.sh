@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# agentic loop with list_files, read_file, and write_file tools
+# agentic loop with list_files, read_file, write_file, and edit_file tools
 # usage: echo "Read notes.txt and write a summary to report.md." | ./opx-rw.sh
 #
 # examples:
@@ -37,10 +37,6 @@ list_files() {
 
 read_file() {
   local output exit_code
-  if [[ $1 == */* ]]; then
-    tool_result 1 'Rejected: filename must not contain /.'
-    return
-  fi
   output=$(cat -- "$1" 2>&1)
   exit_code=$?
   tool_result "$exit_code" "$output"
@@ -48,18 +44,48 @@ read_file() {
 
 write_file() {
   local output exit_code
-  if [[ $1 == */* ]]; then
-    tool_result 1 'Rejected: filename must not contain /.'
-    return
-  fi
+  [[ "/$1/" != */../* ]] || { tool_result 1 'Rejected: path must not contain .. components.'; return; }
   if [[ -e $1 || -L $1 ]]; then
     tool_result 1 'Rejected: file already exists.'
     return
   fi
   output=$({ set -o noclobber; printf '%s' "$2" >"$1"; } 2>&1)
   exit_code=$?
-  [[ $exit_code -ne 0 ]] || \
-    output="Created $1. write_file has now been used; finish with a final answer."
+  [[ $exit_code -ne 0 ]] || output="Created $1."
+  tool_result "$exit_code" "$output"
+}
+
+edit_file() {
+  local output= exit_code content old new prefix start end previous offset=0
+  local -a ends=() replacements=()
+  [[ "/$1/" != */../* ]] || { tool_result 1 'Rejected: path must not contain .. components.'; return; }
+  jq -e 'type == "array" and length > 0 and all(.[];
+    keys == ["newText", "oldText"] and (.oldText | type == "string" and length > 0)
+    and (.newText | type == "string"))' >/dev/null 2>&1 <<<"$2" ||
+    { tool_result 1 'Rejected: invalid edits or empty oldText.'; return; }
+  # A sentinel preserves trailing newlines in command substitutions.
+  content=$(cat -- "$1" 2>&1 && printf '.') || { tool_result 1 "$content"; return; }
+  content=${content%.}
+  while IFS= read -r -d '' old && IFS= read -r -d '' new; do
+    prefix=${content%%"$old"*}
+    start=${#prefix}
+    [[ $prefix != "$content" && ${content:start+1} != *"$old"* ]] ||
+      { tool_result 1 'Rejected: every oldText must occur exactly once.'; return; }
+    end=$((start + ${#old}))
+    for previous in "${!ends[@]}"; do
+      (( start >= ends[previous] || end <= previous )) ||
+        { tool_result 1 'Rejected: edits overlap; nothing was changed.'; return; }
+    done
+    ends[start]=$end replacements[start]=$new
+  done < <(jq -j '.[] | .oldText, "\u0000", .newText, "\u0000"' <<<"$2")
+  # Indexed arrays visit positions in ascending order.
+  for start in "${!ends[@]}"; do
+    output+=${content:offset:start-offset}${replacements[start]}
+    offset=${ends[start]}
+  done
+  output=$({ printf '%s' "$output${content:offset}" >"$1"; } 2>&1)
+  exit_code=$?
+  [[ $exit_code -ne 0 ]] || output="Updated $1."
   tool_result "$exit_code" "$output"
 }
 
@@ -68,12 +94,8 @@ system_prompt='You are a coding assistant working in the current directory.
 Available tools:
 - Use list_files to inspect the current directory.
 - Use read_file to read file contents.
-- Use write_file to create one new file.
-
-Limits:
-- Call list_files at most once.
-- Call write_file at most once.
-- After receiving any write_file result, finish with a short final answer.'
+- Use write_file to create new files.
+- Use edit_file to replace exact text in an existing file.'
 
 messages=$(jq -n --arg system_prompt "$system_prompt" --arg prompt "$(cat)" '[
   {"role":"system","content":$system_prompt},
@@ -85,11 +107,9 @@ tools='[
     "type": "function",
     "function": {
       "name": "list_files",
-      "description": "List the current directory with ls -la. This tool can be called only once.",
+      "description": "List the current directory with ls -la.",
       "parameters": {
-        "type": "object",
-        "properties": {},
-        "additionalProperties": false
+        "type": "object", "properties": {}, "additionalProperties": false
       },
       "strict": true
     }
@@ -98,17 +118,15 @@ tools='[
     "type": "function",
     "function": {
       "name": "read_file",
-      "description": "Read a complete file from the current directory. The filename must not contain /.",
+      "description": "Read a complete file from the current directory.",
       "parameters": {
         "type": "object",
         "properties": {
           "filename": {
-            "type": "string",
-            "description": "A file name without /."
+            "type": "string", "description": "A file path without .. components."
           }
         },
-        "required": ["filename"],
-        "additionalProperties": false
+        "required": ["filename"], "additionalProperties": false
       },
       "strict": true
     }
@@ -117,20 +135,39 @@ tools='[
     "type": "function",
     "function": {
       "name": "write_file",
-      "description": "Create one new file in the current directory. This tool can be called only once; finish with a final answer afterward. Existing files are rejected and the filename must not contain /.",
+      "description": "Create a new file in the current directory. The filename must not contain '..'.",
       "parameters": {
         "type": "object",
         "properties": {
           "filename": {
-            "type": "string",
-            "description": "A new file name without /. It must not already exist."
+            "type": "string", "description": "A new file name without '..'. It must not already exist."
           },
-          "content": {
-            "type": "string"
+          "content": {"type": "string"}
+        },
+        "required": ["filename", "content"], "additionalProperties": false
+      },
+      "strict": true
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "edit_file",
+      "description": "Replace unique, non-empty oldText matches in an existing file. Reject missing, repeated, or overlapping matches without changing the file.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "filename": {"type": "string", "description": "An existing file path without .. components."},
+          "edits": {
+            "type": "array", "minItems": 1,
+            "items": {
+              "type": "object",
+              "properties": {"oldText": {"type": "string"}, "newText": {"type": "string"}},
+              "required": ["oldText", "newText"], "additionalProperties": false
+            }
           }
         },
-        "required": ["filename", "content"],
-        "additionalProperties": false
+        "required": ["filename", "edits"], "additionalProperties": false
       },
       "strict": true
     }
@@ -139,8 +176,6 @@ tools='[
 
 # start the agentic loop
 answer=$(llm)
-list_files_used=false
-write_file_used=false
 while jq -e '.choices[0].message.tool_calls | length > 0' >/dev/null <<<"$answer"; do
   assistant=$(jq '.choices[0].message' <<<"$answer")
   messages=$(jq --argjson assistant "$assistant" '. + [$assistant]' <<<"$messages")
@@ -149,32 +184,23 @@ while jq -e '.choices[0].message.tool_calls | length > 0' >/dev/null <<<"$answer
   while IFS= read -r call; do
     name=$(jq -r '.function.name' <<<"$call")
     arguments=$(jq -r '.function.arguments' <<<"$call")
-    if [[ $name == write_file ]]; then
-      printf 'Tool: write_file %s\n' "$(jq -c '{filename}' <<<"$arguments")" >&2
+    if [[ $name == write_file || $name == edit_file ]]; then
+      printf 'Tool: %s %s\n' "$name" "$(jq -c '{filename}' <<<"$arguments")" >&2
     else
       printf 'Tool: %s %s\n' "$name" "$arguments" >&2
     fi
 
     # dispatch tools
     case "$name" in
-      list_files)
-        if [[ $list_files_used == true ]]; then
-          result=$(tool_result 1 'Rejected: list_files can only be called once.')
-        else
-          list_files_used=true
-          result=$(list_files)
-        fi
-        ;;
+      list_files) result=$(list_files) ;;
       read_file) result=$(read_file "$(jq -r '.filename' <<<"$arguments")") ;;
+      edit_file)
+        result=$(edit_file "$(jq -r '.filename' <<<"$arguments")" \
+          "$(jq -c '.edits' <<<"$arguments")")
+        ;;
       write_file)
-        if [[ $write_file_used == true ]]; then
-          result=$(tool_result 1 \
-            'Rejected: write_file can only be called once. Finish with a final answer.')
-        else
-          write_file_used=true
-          result=$(write_file "$(jq -r '.filename' <<<"$arguments")" \
-            "$(jq -r '.content' <<<"$arguments")")
-        fi
+        result=$(write_file "$(jq -r '.filename' <<<"$arguments")" \
+          "$(jq -r '.content' <<<"$arguments")")
         ;;
       *) result='{"exit_code":1,"output":"Unknown tool."}' ;;
     esac
